@@ -1,3 +1,44 @@
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import ast
+
+# Load Dataset
+credits_file = "C:/Users/aryna/Downloads/tmdb_5000_credits.csv"
+  # Replace with your file path
+credits_df = pd.read_csv(credits_file)
+
+# Preprocessing
+def preprocess_data(df):
+    # Parse cast and crew columns
+    def get_names(column_data):
+        try:
+            parsed = ast.literal_eval(column_data)
+            return " ".join([item['name'] for item in parsed])
+        except (ValueError, KeyError):
+            return ""
+
+    df['cast'] = df['cast'].apply(get_names)
+    df['crew'] = df['crew'].apply(get_names)
+
+    # Combine features into a single "bag of words"
+    df['combined_features'] = df['title'] + " " + df['cast'] + " " + df['crew']
+    return df
+
+credits_df = preprocess_data(credits_df)
+
+# Build a TF-IDF Vectorizer
+tfidf = TfidfVectorizer(stop_words='english')
+tfidf_matrix = tfidf.fit_transform(credits_df['combined_features'])
+
+# Compute cosine similarity
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+# Movie Title to Index Mapping
+movie_indices = pd.Series(credits_df.index, index=credits_df['title']).drop_duplicates()
+
+# Recommendation Function
 def get_recommendations(title, num_recommendations=5):
     if title not in movie_indices:
         return [f"Movie '{title}' not found in the dataset."]
@@ -17,3 +58,24 @@ def get_recommendations(title, num_recommendations=5):
     # Retrieve the movie titles for the recommendations
     recommended_movies = [credits_df.iloc[i[0]]['title'] for i in sim_scores]
     return recommended_movies
+
+# CLI Interface
+def main():
+    print("=== Movie Recommendation System ===")
+    print("Type 'exit' to quit the program.")
+    while True:
+        user_input = input("\nEnter a movie title for recommendations: ").strip()
+        if user_input.lower() == 'exit':
+            print("Goodbye!")
+            break
+        recommendations = get_recommendations(user_input, num_recommendations=5)
+        if len(recommendations) == 1:  # No recommendations found
+            print(recommendations[0])
+        else:
+            print(f"\nMovies similar to '{user_input}':")
+            for idx, movie in enumerate(recommendations, 1):
+                print(f"{idx}. {movie}")
+
+# Run the program
+if __name__ == "__main__":
+    main()
